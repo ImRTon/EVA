@@ -10,13 +10,13 @@ from .cascade_mask_rcnn_vitdet_b_100ep import (
     get_vit_lr_decay_rate,
 )
 
-dataloader.train.total_batch_size = 64
+dataloader.train.total_batch_size = 2
 
 model.backbone.net.beit_like_qkv_bias = True
 model.backbone.net.beit_like_gamma = False
 model.backbone.net.freeze_patch_embed = True
-model.backbone.square_pad = 1280
-model.backbone.net.img_size = 1280
+model.backbone.square_pad = 1024
+model.backbone.net.img_size = 1024
 model.backbone.net.patch_size = 16
 model.backbone.net.window_size = 16
 model.backbone.net.embed_dim = 1408

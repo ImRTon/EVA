@@ -18,7 +18,7 @@ register_coco_instances(f"val", {}, "/workspace/Datasets/LandscapeCoco/val/val_c
                             "/workspace/Datasets/LandscapeCoco/val")
 
 # Data using LSJ
-image_size = 1280
+image_size = 1024
 dataloader = model_zoo.get_config("common/data/coco.py").dataloader
 dataloader = OmegaConf.create()
 
