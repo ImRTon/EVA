@@ -33,8 +33,10 @@ from detectron2.utils.visualizer import Visualizer, ColorMode
 from detectron2.data import MetadataCatalog
 from tqdm import tqdm
 import os
+import torch
+import cv2
 
-from . import utils
+import utils as my_utils
 
 logger = logging.getLogger("detectron2")
 
@@ -47,19 +49,30 @@ def do_test(cfg, model):
         print_csv_format(ret)
         return ret
 
-def do_inference(cfg, input_path, output_path):
-    predictor = DefaultPredictor(cfg)
+def do_inference(model, input_path, output_path):
+    model.eval()
     for filename in tqdm(os.listdir(input_path)):
         if filename.endswith('.jpg') or filename.endswith('.JPG') or filename.endswith('.png'):
-            img = utils.get_cv_img_from_PIL(os.path.join(input_path, filename))
-            outputs = predictor(img)  # format is documented at https://detectron2.readthedocs.io/tutorials/models.html#model-output-format
-            v = Visualizer(img[:, :, ::-1],
+            original_image = my_utils.get_cv_img_from_PIL(os.path.join(input_path, filename))
+            if True:
+                # whether the model expects BGR inputs or RGB
+                original_image = original_image[:, :, ::-1]
+            height, width = original_image.shape[:2]
+            original_image = cv2.resize(original_image, (width // 12, height // 12))
+            # original_image = original_image.resize((width // 4, height // 4))
+            # image = self.aug.get_transform(original_image).apply_image(original_image)
+            image = torch.as_tensor(original_image.astype("float32").transpose(2, 0, 1))
+
+            inputs = {"image": image, "height": height // 12, "width": width // 12}
+            outputs = model([inputs])[0]
+            # outputs = model([inputs])  # format is documented at https://detectron2.readthedocs.io/tutorials/models.html#model-output-format
+            v = Visualizer(original_image[:, :, ::-1],
                         metadata=MetadataCatalog.get("train"), 
                         scale=0.5, 
                         instance_mode=ColorMode.IMAGE_BW   # remove the colors of unsegmented pixels. This option is only available for segmentation models
             )
             out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
-            utils.save_cv_img_from_PIL(out.get_image()[:, :, ::-1], os.path.join(output_path, filename))
+            my_utils.save_cv_img_from_PIL(out.get_image()[:, :, ::-1], os.path.join(output_path, filename))
 
 def do_train(args, cfg):
     """
@@ -131,12 +144,11 @@ def main(args):
     default_setup(cfg, args)
 
     if args.eval_only:
-        cfg.MODEL.WEIGHTS = args.checkpoint
-        do_inference(cfg, args.data_input_path, args.data_output_path)
-        # model = instantiate(cfg.model)
-        # model.to(cfg.train.device)
-        # model = create_ddp_model(model)
-        # DetectionCheckpointer(model).load(cfg.train.init_checkpoint)
+        model = instantiate(cfg.model)
+        model.to(cfg.train.device)
+        model = create_ddp_model(model)
+        DetectionCheckpointer(model).load(cfg.train.init_checkpoint)
+        do_inference(model, args.data_input_path, args.data_output_path)
         # print(do_test(cfg, model))
     else:
         do_train(args, cfg)
@@ -144,6 +156,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = default_argument_parser()
+    parser.add_argument("--checkpoint", default="", metavar="FILE", help="path to input data")
     parser.add_argument("--data_input_path", default="", metavar="FILE", help="path to input data")
     parser.add_argument("--data_output_path", default="", metavar="FILE", help="path to input data")
     args = parser.parse_args()
