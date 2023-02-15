@@ -11,7 +11,7 @@ register_coco_instances(f"val", {}, "/workspace/Datasets/LandscapeCoco/val/val_c
 
 
 # Data using LSJ
-image_size = 1536
+image_size = 1024
 dataloader = model_zoo.get_config("common/data/coco.py").dataloader
 dataloader.train.mapper.augmentations = [
     L(T.RandomFlip)(horizontal=True),  # flip first

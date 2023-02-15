@@ -57,13 +57,14 @@ def do_inference(model, input_path, output_path):
             if True:
                 # whether the model expects BGR inputs or RGB
                 original_image = original_image[:, :, ::-1]
-            height, width = original_image.shape[:2]
-            original_image = cv2.resize(original_image, (width // 12, height // 12))
+            o_height, o_width, _ = original_image.shape
+            scaled_image = my_utils.scale_down_img(original_image, 1280)
+            height, width, _ = scaled_image.shape
             # original_image = original_image.resize((width // 4, height // 4))
             # image = self.aug.get_transform(original_image).apply_image(original_image)
-            image = torch.as_tensor(original_image.astype("float32").transpose(2, 0, 1))
+            image = torch.as_tensor(scaled_image.astype("float32").transpose(2, 0, 1))
 
-            inputs = {"image": image, "height": height // 12, "width": width // 12}
+            inputs = {"image": image, "height": o_height, "width": o_width}
             outputs = model([inputs])[0]
             # outputs = model([inputs])  # format is documented at https://detectron2.readthedocs.io/tutorials/models.html#model-output-format
             v = Visualizer(original_image[:, :, ::-1],

@@ -4,6 +4,7 @@ work_dirs/
 
 # output dir
 output
+predicts/*
 instant_test_output
 inference_test_output
 
