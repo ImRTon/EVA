@@ -24,10 +24,17 @@ from detectron2.engine import (
     default_writers,
     hooks,
     launch,
+    DefaultPredictor,
 )
 from detectron2.engine.defaults import create_ddp_model
 from detectron2.evaluation import inference_on_dataset, print_csv_format
 from detectron2.utils import comm
+from detectron2.utils.visualizer import Visualizer, ColorMode
+from detectron2.data import MetadataCatalog
+from tqdm import tqdm
+import os
+
+from . import utils
 
 logger = logging.getLogger("detectron2")
 
@@ -40,6 +47,19 @@ def do_test(cfg, model):
         print_csv_format(ret)
         return ret
 
+def do_inference(cfg, input_path, output_path):
+    predictor = DefaultPredictor(cfg)
+    for filename in tqdm(os.listdir(input_path)):
+        if filename.endswith('.jpg') or filename.endswith('.JPG') or filename.endswith('.png'):
+            img = utils.get_cv_img_from_PIL(os.path.join(input_path, filename))
+            outputs = predictor(img)  # format is documented at https://detectron2.readthedocs.io/tutorials/models.html#model-output-format
+            v = Visualizer(img[:, :, ::-1],
+                        metadata=MetadataCatalog.get("train"), 
+                        scale=0.5, 
+                        instance_mode=ColorMode.IMAGE_BW   # remove the colors of unsegmented pixels. This option is only available for segmentation models
+            )
+            out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
+            utils.save_cv_img_from_PIL(out.get_image()[:, :, ::-1], os.path.join(output_path, filename))
 
 def do_train(args, cfg):
     """
@@ -111,17 +131,22 @@ def main(args):
     default_setup(cfg, args)
 
     if args.eval_only:
-        model = instantiate(cfg.model)
-        model.to(cfg.train.device)
-        model = create_ddp_model(model)
-        DetectionCheckpointer(model).load(cfg.train.init_checkpoint)
-        print(do_test(cfg, model))
+        cfg.MODEL.WEIGHTS = args.checkpoint
+        do_inference(cfg, args.data_input_path, args.data_output_path)
+        # model = instantiate(cfg.model)
+        # model.to(cfg.train.device)
+        # model = create_ddp_model(model)
+        # DetectionCheckpointer(model).load(cfg.train.init_checkpoint)
+        # print(do_test(cfg, model))
     else:
         do_train(args, cfg)
 
 
 if __name__ == "__main__":
-    args = default_argument_parser().parse_args()
+    parser = default_argument_parser()
+    parser.add_argument("--data_input_path", default="", metavar="FILE", help="path to input data")
+    parser.add_argument("--data_output_path", default="", metavar="FILE", help="path to input data")
+    args = parser.parse_args()
     launch(
         main,
         args.num_gpus,
