@@ -51,29 +51,31 @@ def do_test(cfg, model):
 
 def do_inference(model, input_path, output_path):
     model.eval()
-    for filename in tqdm(os.listdir(input_path)):
-        if filename.endswith('.jpg') or filename.endswith('.JPG') or filename.endswith('.png'):
-            original_image = my_utils.get_cv_img_from_PIL(os.path.join(input_path, filename))
-            if True:
-                # whether the model expects BGR inputs or RGB
-                original_image = original_image[:, :, ::-1]
-            o_height, o_width, _ = original_image.shape
-            scaled_image = my_utils.scale_down_img(original_image, 1280)
-            height, width, _ = scaled_image.shape
-            # original_image = original_image.resize((width // 4, height // 4))
-            # image = self.aug.get_transform(original_image).apply_image(original_image)
-            image = torch.as_tensor(scaled_image.astype("float32").transpose(2, 0, 1))
+    with torch.no_grad():
+        for filename in tqdm(os.listdir(input_path)):
+            if filename.endswith('.jpg') or filename.endswith('.JPG') or filename.endswith('.png'):
+                original_image = my_utils.get_cv_img_from_PIL(os.path.join(input_path, filename))
+                if True:
+                    # whether the model expects BGR inputs or RGB
+                    original_image = original_image[:, :, ::-1]
+                o_height, o_width, _ = original_image.shape
+                scaled_image = my_utils.scale_down_img(original_image, 1280)
+                height, width, _ = scaled_image.shape
+                # original_image = original_image.resize((width // 4, height // 4))
+                # image = self.aug.get_transform(original_image).apply_image(original_image)
+                image = torch.as_tensor(scaled_image.astype("float32").transpose(2, 0, 1))
 
-            inputs = {"image": image, "height": o_height, "width": o_width}
-            outputs = model([inputs])[0]
-            # outputs = model([inputs])  # format is documented at https://detectron2.readthedocs.io/tutorials/models.html#model-output-format
-            v = Visualizer(original_image[:, :, ::-1],
-                        metadata=MetadataCatalog.get("train"), 
-                        scale=0.5, 
-                        instance_mode=ColorMode.IMAGE_BW   # remove the colors of unsegmented pixels. This option is only available for segmentation models
-            )
-            out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
-            my_utils.save_cv_img_from_PIL(out.get_image()[:, :, ::-1], os.path.join(output_path, filename))
+                inputs = {"image": image, "height": o_height, "width": o_width}
+                outputs = model([inputs])[0]
+                # outputs = model([inputs])  # format is documented at https://detectron2.readthedocs.io/tutorials/models.html#model-output-format
+                v = Visualizer(original_image[:, :, ::-1],
+                            metadata=MetadataCatalog.get("train"), 
+                            scale=0.5, 
+                            instance_mode=ColorMode.IMAGE_BW   # remove the colors of unsegmented pixels. This option is only available for segmentation models
+                )
+                filtered_outs = my_utils.filter_instance_masks(outputs, threshold=0.5)
+                out = v.draw_instance_predictions(filtered_outs)
+                my_utils.save_cv_img_from_PIL(out.get_image()[:, :, ::-1], os.path.join(output_path, filename))
 
 def do_train(args, cfg):
     """

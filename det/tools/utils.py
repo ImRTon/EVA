@@ -417,3 +417,11 @@ def scale_down_img(img, target_res):
         scale = target_res / img_w
     img = cv2.resize(img, (int(img_w * scale), int(img_h * scale)))
     return img
+
+def filter_instance_masks(outputs, threshold=0.5):
+    """
+    Filter instance masks by thresholding on scores
+    """
+    instances = outputs['instances'].to('cpu')
+    filtered_instances = instances[instances.scores > threshold]
+    return filtered_instances
